@@ -18,7 +18,10 @@ class DownloadController extends \yii\web\Controller
     public function __construct($id, $module, $config = [])
     {
         $periode = Kegiatan::find()->one();
-        $this->_periode = Formatter::asIndonesianMonth($periode->tanggal);
+
+        if ($periode) {
+            $this->_periode = Formatter::asIndonesianMonth($periode->tanggal);
+        }
 
         parent::__construct($id, $module, $config);
     }
@@ -106,6 +109,11 @@ class DownloadController extends \yii\web\Controller
 
         $base = 12;
         $datas = Kegiatan::find()->all();
+
+        if (empty($datas)) {
+            Yii::$app->session->setFlash('warning', 'Data SIEKA harap diunggah terlebih dahulu');
+            return $this->goHome();
+        }
 
         // Bikin row sebanyak jumlah kegiatan
         $sheet->insertNewRowBefore($base, count($datas));
@@ -199,6 +207,11 @@ class DownloadController extends \yii\web\Controller
             ->orderBy(['tanggal' => 'ASC'])
             ->all();
 
+        if (empty($kegiatan)) {
+            Yii::$app->session->setFlash('warning', 'Data SIEKA harap diunggah terlebih dahulu');
+            return $this->goHome();
+        }
+
         $data = [];
         foreach ($kegiatan as $val) {
             $data[$val->tanggal][] = $val;
@@ -285,21 +298,41 @@ class DownloadController extends \yii\web\Controller
                 ->setCellValue('H11', 'KET');
 
             $base = 12;
-            
+
             // Bikin row sebanyak jumlah kegiatan
-            $sheet->insertNewRowBefore($base, count($val));
+            $sheet->insertNewRowBefore($base, count($val)+2);
+
+            // Add row "Presensi Kehadiran"
+            $j = 1;
+            $sheet->setCellValue('A'.$base, $j);
+            $sheet->mergeCells('B'.$base.':D'.$base);
+            $sheet->setCellValue('B'.$base, 'Presensi Kehadiran');
+            $sheet->setCellValue('E'.$base, null);
+            $sheet->setCellValue('F'.$base, null);
+            $sheet->setCellValue('G'.$base, null);
+            $sheet->setCellValue('H'.$base, null);
 
             // Insert data
             foreach ($val as $x => $data) {
-                $sheet->setCellValue('A'.$base, $x+1);
-                $sheet->mergeCells('B'.$base.':D'.$base);
-                $sheet->setCellValue('B'.$base, $data->kegiatan);
-                $sheet->setCellValue('E'.$base, null);
-                $sheet->setCellValue('F'.$base, $data->volume);
-                $sheet->setCellValue('G'.$base, $data->satuan);
-                $sheet->setCellValue('H'.$base, null);
+                $j = $x+2;
+                $sheet->setCellValue('A'.intval($base+1), $j);
+                $sheet->mergeCells('B'.intval($base+1).':D'.intval($base+1));
+                $sheet->setCellValue('B'.intval($base+1), $data->kegiatan);
+                $sheet->setCellValue('E'.intval($base+1), null);
+                $sheet->setCellValue('F'.intval($base+1), $data->volume);
+                $sheet->setCellValue('G'.intval($base+1), $data->satuan);
+                $sheet->setCellValue('H'.intval($base+1), null);
                 $base++;
             }
+
+            // Add row "Presensi Pulang"
+            $sheet->setCellValue('A'.intval($base+1), $j+1);
+            $sheet->mergeCells('B'.intval($base+1).':D'.intval($base+1));
+            $sheet->setCellValue('B'.intval($base+1), 'Presensi Pulang');
+            $sheet->setCellValue('E'.intval($base+1), null);
+            $sheet->setCellValue('F'.intval($base+1), null);
+            $sheet->setCellValue('G'.intval($base+1), null);
+            $sheet->setCellValue('H'.intval($base+1), null);
 
             $spreadsheet->getActiveSheet()
                 ->getStyle('A11:H11')
@@ -312,45 +345,45 @@ class DownloadController extends \yii\web\Controller
             
             // Apply border
             $spreadsheet->getActiveSheet()
-                ->getStyle('A11:H' . intval($base-1))
+                ->getStyle('A11:H' . intval($base+1))
                 ->getBorders()
                 ->getAllBorders()
                 ->setBorderStyle(Border::BORDER_THIN)
                 ->setColor(new Color('00000000'));
             
             // Mengetahui
-            $sheet->mergeCells('A'.intval($base+2).':D'.intval($base+2));
-            $sheet->mergeCells('A'.intval($base+8).':D'.intval($base+8));
-            $sheet->mergeCells('A'.intval($base+9).':D'.intval($base+9));
+            $sheet->mergeCells('A'.intval($base+4).':D'.intval($base+4));
+            $sheet->mergeCells('A'.intval($base+10).':D'.intval($base+10));
+            $sheet->mergeCells('A'.intval($base+11).':D'.intval($base+11));
 
-            $sheet->setCellValue('A'.intval($base+2), 'Pejabat penilai/Atasan Langsung')
-                ->setCellValue('A'.intval($base+8), Yii::$app->setting->getKepalaMadrasah());
-            $sheet->setCellValue('A'.intval($base+9), 'NIP. ' . Yii::$app->setting->getNipKepalaMadrasah());
+            $sheet->setCellValue('A'.intval($base+4), 'Pejabat penilai/Atasan Langsung')
+                ->setCellValue('A'.intval($base+10), Yii::$app->setting->getKepalaMadrasah());
+            $sheet->setCellValue('A'.intval($base+11), 'NIP. ' . Yii::$app->setting->getNipKepalaMadrasah());
 
             $spreadsheet->getActiveSheet()
-                ->getStyle('A'.intval($base+8))
+                ->getStyle('A'.intval($base+10))
                 ->getFont()
                 ->setBold(true);
             $spreadsheet->getActiveSheet()
-                ->getStyle('A'.intval($base+9))
+                ->getStyle('A'.intval($base+11))
                 ->getFont()
                 ->setBold(true);
 
             // Yang Dinilai
-            $sheet->mergeCells('F'.intval($base+2).':H'.intval($base+2));
-            $sheet->mergeCells('F'.intval($base+8).':H'.intval($base+8));
-            $sheet->mergeCells('F'.intval($base+9).':H'.intval($base+9));
+            $sheet->mergeCells('F'.intval($base+4).':H'.intval($base+4));
+            $sheet->mergeCells('F'.intval($base+10).':H'.intval($base+10));
+            $sheet->mergeCells('F'.intval($base+11).':H'.intval($base+11));
 
-            $sheet->setCellValue('F'.intval($base+2), 'Yang dinilai, ')
-                ->setCellValue('F'.intval($base+8), Yii::$app->setting->getFullname())
-                ->setCellValue('F'.intval($base+9), 'NIP. ' .Yii::$app->setting->getNip());
+            $sheet->setCellValue('F'.intval($base+4), 'Yang dinilai, ')
+                ->setCellValue('F'.intval($base+10), Yii::$app->setting->getFullname())
+                ->setCellValue('F'.intval($base+11), 'NIP. ' .Yii::$app->setting->getNip());
 
             $spreadsheet->getActiveSheet()
-                ->getStyle('F'.intval($base+8))
+                ->getStyle('F'.intval($base+10))
                 ->getFont()
                 ->setBold(true);
             $spreadsheet->getActiveSheet()
-                ->getStyle('F'.intval($base+9))
+                ->getStyle('F'.intval($base+11))
                 ->getFont()
                 ->setBold(true);
 
@@ -370,6 +403,8 @@ class DownloadController extends \yii\web\Controller
             $i++;
         }
 
+        $spreadsheet->setActiveSheetIndex(0);
+
         // Download Excel File
         // Redirect output to a client’s web browser (Xlsx)
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -381,10 +416,6 @@ class DownloadController extends \yii\web\Controller
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
         $writer->save('php://output');
         exit;
-
-        // return $this->render('laporan-harian', [
-        //     'data' => $data
-        // ]);
     }
 
 }
